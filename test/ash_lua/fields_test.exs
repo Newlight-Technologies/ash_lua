@@ -580,4 +580,82 @@ defmodule AshLua.FieldsTest do
       assert count == 3
     end
   end
+
+  # Embedded resources are listed under the manifest's types, not its resources;
+  # selecting them used to raise "not found in resource lookup".
+  describe "embedded resource fields" do
+    setup do
+      {:ok, post} =
+        Ash.create(
+          Post,
+          %{
+            title: "Embedded",
+            schedule_config: %{cadence: :weekly, hour: 9},
+            schedule_history: [%{cadence: :daily, hour: 6}, %{cadence: :monthly, hour: 18}],
+            next_step: %{cadence: :daily, hour: 7}
+          },
+          action: :create
+        )
+
+      Ash.create!(Post, %{title: "No schedule"}, action: :create)
+      %{post: post}
+    end
+
+    test "selecting an embedded attribute returns its public attributes", %{post: post} do
+      result =
+        run!("""
+        local r = assert(posts.post.read({ fields = { "title", "schedule_config" } }))
+        return r
+        """)
+
+      records = deep(result)
+      record = Enum.find(records, &(&1["title"] == "Embedded"))
+      assert record["schedule_config"] == %{"cadence" => "weekly", "hour" => 9}
+      assert Enum.find(records, &(&1["title"] == "No schedule"))["schedule_config"] == nil
+      assert is_binary(post.id)
+    end
+
+    test "nested selection picks embedded attributes without loading anything" do
+      result =
+        run!("""
+        local r = assert(posts.post.read({ fields = { "title", { schedule_config = { "hour" } } } }))
+        return r
+        """)
+
+      record = result |> deep() |> Enum.find(&(&1["title"] == "Embedded"))
+      assert record["schedule_config"] == %{"hour" => 9}
+    end
+
+    test "arrays of embedded values and embedded union members are selectable" do
+      result =
+        run!("""
+        local r = assert(posts.post.read({ fields = { "title", "schedule_history", "next_step" } }))
+        return r
+        """)
+
+      record = result |> deep() |> Enum.find(&(&1["title"] == "Embedded"))
+
+      assert record["schedule_history"] == [
+               %{"cadence" => "daily", "hour" => 6},
+               %{"cadence" => "monthly", "hour" => 18}
+             ]
+
+      assert record["next_step"] == %{
+               "type" => "schedule",
+               "value" => %{"cadence" => "daily", "hour" => 7}
+             }
+    end
+
+    test "an unknown embedded sub-field is an error, not a crash" do
+      {[nil, err], _lua} =
+        AshLua.eval!(
+          """
+          return posts.post.read({ fields = { { schedule_config = { "nope" } } } })
+          """,
+          otp_app: :ash_lua
+        )
+
+      assert deep(err)["errors"] |> List.first() |> Map.get("message") =~ "unknown field `nope`"
+    end
+  end
 end

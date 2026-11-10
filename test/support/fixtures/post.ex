@@ -101,6 +101,19 @@ defmodule AshLua.Test.Posts.Post do
       public? true
     end
 
+    attribute :schedule_history, {:array, AshLua.Test.Posts.ScheduleConfig} do
+      public? true
+    end
+
+    attribute :next_step, :union do
+      public? true
+
+      constraints types: [
+                    schedule: [type: AshLua.Test.Posts.ScheduleConfig],
+                    note: [type: :string]
+                  ]
+    end
+
     attribute :metadata, :map do
       public? true
 

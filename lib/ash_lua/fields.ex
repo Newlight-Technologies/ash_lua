@@ -251,8 +251,18 @@ defmodule AshLua.Fields do
     {select, load, {:array, template}}
   end
 
+  # Embedded resources are values already loaded on their parent record, and the
+  # manifest lists them under `types` rather than `resources`. Select their public
+  # attributes like a typed map: nothing is added to the parent query's select or
+  # load, so they work as attributes and inside arrays and unions.
+  defp select_for_type(%Manifest.Type{kind: :embedded_resource} = type, ast, ctx) do
+    type
+    |> embedded_as_typed_map(ctx)
+    |> select_for_typed_map(ast, ctx)
+  end
+
   defp select_for_type(%Manifest.Type{kind: kind, resource_module: mod}, ast, ctx)
-       when kind in [:resource, :embedded_resource] and not is_nil(mod) do
+       when kind == :resource and not is_nil(mod) do
     resource = Manifest.get_resource!(ctx.lookup, mod)
     select_for_resource(resource, ast, ctx)
   end
@@ -572,6 +582,46 @@ defmodule AshLua.Fields do
   defp primitive_or_sub(%Manifest.Type{} = type, ast, ctx) do
     {_sel, _ld, tmpl} = select_for_type(type, ast, ctx)
     tmpl
+  end
+
+  defp embedded_as_typed_map(%Manifest.Type{resource: %Manifest.Resource{} = resource}, _ctx),
+    do: resource_as_typed_map(resource)
+
+  defp embedded_as_typed_map(%Manifest.Type{resource_module: mod}, ctx) do
+    with nil <- embedded_from_types(ctx.type_lookup, mod),
+         nil <- Manifest.get_resource(ctx.lookup, mod) do
+      t = inspect(mod)
+
+      throw(
+        {:error,
+         err(
+           "embedded type `#{t}` is not in the manifest",
+           "unknown_embedded_type",
+           [],
+           %{"type" => t}
+         )}
+      )
+    else
+      %Manifest.Resource{} = resource -> resource_as_typed_map(resource)
+    end
+  end
+
+  defp embedded_from_types(type_lookup, mod) do
+    case Map.get(type_lookup, mod) do
+      %Manifest.Type{resource: %Manifest.Resource{} = resource} -> resource
+      _ -> nil
+    end
+  end
+
+  defp resource_as_typed_map(%Manifest.Resource{fields: fields}) do
+    attributes =
+      fields
+      |> Map.values()
+      |> Enum.filter(&(&1.kind == :attribute))
+      |> Enum.sort_by(& &1.name)
+      |> Enum.map(&%{name: &1.name, type: &1.type})
+
+    %Manifest.Type{kind: :struct, fields: attributes}
   end
 
   defp select_for_typed_map(%Manifest.Type{fields: fields}, :default, ctx) do
