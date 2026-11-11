@@ -260,18 +260,18 @@ defmodule AshLua.DocsTest do
       {:ok, md} = AshLua.Docs.type_doc(opts(), "posts.post")
 
       assert md =~ "## Filterable fields"
-      assert md =~ "### `title` (`string`)"
+      # Fields with the same type and operators share one entry rather than
+      # repeating the list per field.
+      assert md =~ "### `body`, `title`, `title_downcase`, `title_prefixed` (`string`)\n"
       # Operators render with the shortest valid-identifier name from the
       # manifest's per-operator alias list — `:==` → `eq`, `:>` → `greater_than`.
-      assert md =~ "- `eq` — value: `string`"
-      assert md =~ "- `not_eq` — value: `string`"
-      assert md =~ "- `less_than` — value: `string`"
-      assert md =~ "- `greater_than` — value: `string`"
-      assert md =~ "- `less_than_or_equal` — value: `string`"
-      assert md =~ "- `greater_than_or_equal` — value: `string`"
-      assert md =~ "- `in` — value: list of `string`"
-      assert md =~ "- `is_nil` — value: `boolean`"
-      assert md =~ "- `contains` — value: `string`"
+      for op <-
+            ~w(eq not_eq less_than greater_than less_than_or_equal greater_than_or_equal contains) do
+        assert md =~ ~r/^  - value `string`: [^\n]*`#{op}`(,|$)/m, "missing #{op}"
+      end
+
+      assert md =~ ~r/^  - value list of `string`: [^\n]*`in`/m
+      assert md =~ ~r/^  - value `boolean`: [^\n]*`is_nil`/m
 
       # Bare canonical symbols never leak into the rendered docs.
       refute md =~ "- `==`"
@@ -288,8 +288,8 @@ defmodule AshLua.DocsTest do
 
       # `status` is a custom enum type — `eq` RHS is :same, so it should
       # cross-link to the Status type page rather than show a builtin atom.
-      assert md =~ "### `status` ([`Status`](#status))"
-      assert md =~ "- `eq` — value: [`Status`](#status)"
+      assert md =~ ~r/^### [^\n]*`status`[^\n]* \(\[`Status`\]\(#status\)\)$/m
+      assert md =~ ~r/^  - value \[`Status`\]\(#status\): [^\n]*`eq`/m
     end
   end
 

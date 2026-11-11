@@ -137,7 +137,7 @@ defmodule AshLua.SurfaceTest do
 
     assert type_md =~ "| `headline` | `string`"
     assert type_md =~ "| `featured` | `boolean`"
-    assert type_md =~ "### `headline` (`string`)"
+    assert type_md =~ ~r/^### [^\n]*`headline`[^\n]* \(`string`\)$/m
     assert type_md =~ "- `headline`"
     refute type_md =~ "| `title` |"
     refute type_md =~ "| `featured?` |"

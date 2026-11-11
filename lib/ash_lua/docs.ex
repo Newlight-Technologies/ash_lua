@@ -1226,58 +1226,76 @@ defmodule AshLua.Docs do
 
       fields ->
         body =
-          Enum.map_join(fields, "\n\n", fn field ->
-            field_filter_block(resource, field, resource_lookup, type_lookup, op_display_map)
-          end)
+          fields
+          |> Enum.map(
+            &field_filter_entry(resource, &1, resource_lookup, type_lookup, op_display_map)
+          )
+          |> group_same_signatures()
+          |> Enum.map_join("\n\n", &field_filter_block/1)
 
-        "\n\n## Filterable fields\n\nThe `filter` reserved input on list operations accepts these per-field forms. See the **Filters** topic for the overall expression shape, including boolean combinators.\n\n" <>
+        "\n\n## Filterable fields\n\nThe `filter` reserved input on list operations accepts these per-field forms. Fields that accept the same operators with the same value types share one entry; each line lists the operators that take that value type. See the **Filters** topic for the overall expression shape, including boolean combinators.\n\n" <>
           body
     end
   end
 
-  defp field_filter_block(
+  # Fields with an identical type and operator set render as one entry, so a
+  # record type with many plain string or date fields does not repeat the same
+  # operator list once per field. Order follows each signature's first field.
+  defp group_same_signatures(entries) do
+    names_by_signature =
+      Enum.group_by(entries, fn {_name, signature} -> signature end, fn {name, _} -> name end)
+
+    entries
+    |> Enum.uniq_by(fn {_name, signature} -> signature end)
+    |> Enum.map(fn {_name, signature} ->
+      {Map.fetch!(names_by_signature, signature), signature}
+    end)
+  end
+
+  defp field_filter_entry(
          %Manifest.Resource{} = resource,
          %Manifest.Field{} = field,
          resource_lookup,
          type_lookup,
          op_display_map
        ) do
-    operators = field.filter_operators || []
-    functions = field.filter_functions || []
-    custom_exprs = field.filter_custom_expressions || []
+    applicable =
+      (field.filter_operators || []) ++
+        (field.filter_functions || []) ++ (field.filter_custom_expressions || [])
 
-    header =
-      "### `#{AshLua.FieldNames.to_lua_field_name(resource.module, field.name)}` (#{type_link(field.type, resource_lookup, type_lookup)})"
+    rendered =
+      Enum.map(applicable, fn %{name: name, rhs: rhs} ->
+        {render_rhs(rhs, field.type, resource_lookup, type_lookup),
+         "`#{display_op_name(name, op_display_map)}`"}
+      end)
 
-    lines =
-      Enum.map(
-        operators,
-        &applicable_line(&1, field.type, resource_lookup, type_lookup, op_display_map)
-      ) ++
-        Enum.map(
-          functions,
-          &applicable_line(&1, field.type, resource_lookup, type_lookup, op_display_map)
-        ) ++
-        Enum.map(
-          custom_exprs,
-          &applicable_line(&1, field.type, resource_lookup, type_lookup, op_display_map)
-        )
+    ops_by_value = Enum.group_by(rendered, &elem(&1, 0), &elem(&1, 1))
 
-    case lines do
-      [] -> header <> "\n\n  - _no operators applicable_"
-      _ -> header <> "\n\n" <> Enum.map_join(lines, "\n", &("  - " <> &1))
-    end
+    value_lines =
+      rendered
+      |> Enum.map(&elem(&1, 0))
+      |> Enum.uniq()
+      |> Enum.map(&{&1, Map.fetch!(ops_by_value, &1)})
+
+    {AshLua.FieldNames.to_lua_field_name(resource.module, field.name),
+     {type_link(field.type, resource_lookup, type_lookup), value_lines}}
   end
 
-  defp applicable_line(
-         %{name: name, rhs: rhs},
-         field_type,
-         resource_lookup,
-         type_lookup,
-         op_display_map
-       ) do
-    "`#{display_op_name(name, op_display_map)}` — value: " <>
-      render_rhs(rhs, field_type, resource_lookup, type_lookup)
+  defp field_filter_block({names, {type_text, value_lines}}) do
+    header =
+      "### " <> Enum.map_join(names, ", ", &"`#{&1}`") <> " (#{type_text})"
+
+    case value_lines do
+      [] ->
+        header <> "\n\n  - _no operators applicable_"
+
+      _ ->
+        header <>
+          "\n\n" <>
+          Enum.map_join(value_lines, "\n", fn {value, ops} ->
+            "  - value #{value}: " <> Enum.join(ops, ", ")
+          end)
+    end
   end
 
   defp render_rhs(:same, field_type, resource_lookup, type_lookup) do
