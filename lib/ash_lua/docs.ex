@@ -458,12 +458,27 @@ defmodule AshLua.Docs do
 
       is_atom(identifier) and Map.has_key?(resource_lookup, identifier) ->
         resource = Map.fetch!(resource_lookup, identifier)
-        {:ok, render_record_type(resource, resource_lookup, type_lookup, op_display_map)}
+
+        {:ok,
+         render_record_type(
+           resource,
+           resource_lookup,
+           type_lookup,
+           op_display_map,
+           operations_for(manifest, resource.module)
+         )}
 
       is_binary(identifier) and String.contains?(identifier, ".") ->
         case find_resource_by_path(manifest, identifier) do
           {:ok, resource} ->
-            {:ok, render_record_type(resource, resource_lookup, type_lookup, op_display_map)}
+            {:ok,
+             render_record_type(
+               resource,
+               resource_lookup,
+               type_lookup,
+               op_display_map,
+               operations_for(manifest, resource.module)
+             )}
 
           :error ->
             {:error, :not_found}
@@ -1148,11 +1163,23 @@ defmodule AshLua.Docs do
     type_link(t, resource_lookup, type_lookup)
   end
 
+  # The callables that act on a record type. A record type's documentation path
+  # can differ from its callables' namespace (`production.run` is read through
+  # `production.fermentation.runs.run.read`), so the record page names them.
+  defp operations_for(%Manifest{} = manifest, module) do
+    manifest.entrypoints
+    |> Enum.filter(&(&1.resource == module))
+    |> Enum.map(&AshLua.Surface.path_string/1)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
   defp render_record_type(
          %Manifest.Resource{} = resource,
          resource_lookup,
          type_lookup,
-         op_display_map
+         op_display_map,
+         operations
        ) do
     path = resource_path(resource.module)
     anchor = path_anchor(path)
@@ -1203,6 +1230,15 @@ defmodule AshLua.Docs do
             rows
       end
 
+    operations_line =
+      case operations do
+        [] ->
+          "\n\n**Operations:** none; select it through a relationship from another record type."
+
+        ops ->
+          "\n\n**Operations:** " <> Enum.map_join(ops, ", ", &"`#{&1}`")
+      end
+
     filterable_section =
       filterable_fields_section(resource, resource_lookup, type_lookup, op_display_map)
 
@@ -1212,7 +1248,7 @@ defmodule AshLua.Docs do
     <a id="#{anchor}"></a>
     # Record type `#{path}`#{description}
 
-    #{primary_key_line}#{fields_section}#{rels_section}#{filterable_section}#{sortable_section}
+    #{primary_key_line}#{operations_line}#{fields_section}#{rels_section}#{filterable_section}#{sortable_section}
     """
     |> String.trim()
   end

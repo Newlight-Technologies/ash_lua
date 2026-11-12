@@ -210,6 +210,16 @@ defmodule AshLua.DocsTest do
       refute md =~ "has_many"
     end
 
+    # Catches: a record page with no route to the operations that read it, so a
+    # model that opens the record type cannot find its (differently named) read.
+    test "a record page names the operations that act on it" do
+      {:ok, md} = AshLua.Docs.type_doc(opts(), "posts.post")
+      [ops] = Regex.run(~r/\*\*Operations:\*\* (.+)/, md, capture: :all_but_first)
+
+      assert ops =~ "`posts.post.read`"
+      assert ops =~ "`posts.post.create`"
+    end
+
     test "unknown identifier returns {:error, :not_found}" do
       assert {:error, :not_found} = AshLua.Docs.type_doc(opts(), "posts.bogus")
       assert {:error, :not_found} = AshLua.Docs.type_doc(opts(), Some.Bogus.Module)
