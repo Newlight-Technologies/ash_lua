@@ -166,6 +166,19 @@ defimpl AshLua.Error, for: Ash.Error.Query.InvalidFilterReference do
   end
 end
 
+defimpl AshLua.Error, for: Ash.Error.Query.InvalidSort do
+  def to_error(error) do
+    %{
+      message:
+        "invalid sort `%{sort}`: use a field name or a list of names, with a `-` prefix for descending",
+      short_message: "invalid sort",
+      code: "invalid_sort",
+      vars: %{sort: inspect(error.sort)},
+      fields: ["sort"]
+    }
+  end
+end
+
 defimpl AshLua.Error, for: Ash.Error.Query.UnsortableField do
   def to_error(error) do
     %{

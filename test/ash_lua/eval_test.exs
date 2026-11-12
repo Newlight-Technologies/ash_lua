@@ -88,8 +88,13 @@ defmodule AshLua.EvalTest do
                  otp_app: :ash_lua
                )
 
+      # Ash reports the bad shape itself; the script sees what was wrong with it.
       assert err["class"] == "invalid"
-      assert [%{"code" => "invalid_filter", "fields" => ["filter"]}] = err["errors"]
+
+      assert [%{"code" => "invalid_filter_value", "vars" => %{"detail" => detail}}] =
+               err["errors"]
+
+      assert detail =~ "non-empty"
     end
 
     test "a malformed sort returns an invalid_sort error instead of aborting" do
@@ -103,7 +108,11 @@ defmodule AshLua.EvalTest do
                )
 
       assert err["class"] == "invalid"
-      assert [%{"code" => "invalid_sort", "fields" => ["sort"]}] = err["errors"]
+
+      assert [%{"code" => "invalid_sort", "fields" => ["sort"], "message" => message}] =
+               err["errors"]
+
+      assert message =~ "field name or a list of names"
     end
 
     test "a raise inside an action is returned as an opaque unknown_error" do
