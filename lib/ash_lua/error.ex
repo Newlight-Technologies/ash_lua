@@ -114,14 +114,38 @@ defimpl AshLua.Error, for: Ash.Error.Query.NoSuchRelationship do
 end
 
 defimpl AshLua.Error, for: Ash.Error.Query.NoSuchFilterPredicate do
+  # Common spellings from SQL and other filter languages, with the form that works,
+  # so a script (or a model writing it) can fix the filter without another lookup.
+  @suggestions %{
+    "not_in" => ~s|wrap an `in` in `not`: `["not"] = { field = { ["in"] = {...} } }`|,
+    "nin" => ~s|wrap an `in` in `not`: `["not"] = { field = { ["in"] = {...} } }`|,
+    "ne" => "use `not_eq`",
+    "neq" => "use `not_eq`",
+    "equals" => "use `eq`",
+    "gt" => "use `greater_than`",
+    "gte" => "use `greater_than_or_equal`",
+    "lt" => "use `less_than`",
+    "lte" => "use `less_than_or_equal`",
+    "is_null" => "use `is_nil`",
+    "null" => "use `is_nil`",
+    "between" => "combine `greater_than_or_equal` and `less_than_or_equal` on the field"
+  }
+
   def to_error(error) do
     predicate = to_string(error.key)
 
+    hint =
+      Map.get(
+        @suggestions,
+        predicate,
+        "see the record type's filterable fields or the filters topic"
+      )
+
     %{
-      message: "no such filter predicate `#{predicate}`",
+      message: "no such filter predicate `#{predicate}`; #{hint}",
       short_message: "no such filter predicate",
       code: "no_such_filter_predicate",
-      vars: Map.merge(Map.new(error.vars), %{predicate: predicate}),
+      vars: Map.merge(Map.new(error.vars), %{predicate: predicate, hint: hint}),
       fields: []
     }
   end

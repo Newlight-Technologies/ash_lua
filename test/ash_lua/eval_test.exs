@@ -97,6 +97,21 @@ defmodule AshLua.EvalTest do
       assert detail =~ "non-empty"
     end
 
+    # Catches: a SQL-style predicate (not_in) failing with no hint of the form
+    # that works, so the script needs another docs lookup to recover.
+    test "an unknown filter predicate names the form that works" do
+      assert {:ok, %{error: err}} =
+               AshLua.Eval.run(
+                 """
+                 return posts.post.read({ filter = { title = { not_in = {"a"} } } })
+                 """,
+                 otp_app: :ash_lua
+               )
+
+      assert [%{"code" => "no_such_filter_predicate", "message" => message}] = err["errors"]
+      assert message =~ ~s|["not"]|
+    end
+
     test "a malformed sort returns an invalid_sort error instead of aborting" do
       assert {:ok, %{result: nil, error: err, print_output: []}} =
                AshLua.Eval.run(
