@@ -1667,9 +1667,50 @@ defmodule AshLua.Docs do
     |> Enum.map(fn {cand, _score} -> cand end)
   end
 
+  # The whole phrase (or its snake_case form) ranks first, as before. A phrase that
+  # matches nothing as a unit ("production run", "low stock") falls back to its
+  # words: candidates matching every word outrank those matching only some, so a
+  # model's natural-language search still reaches `production.run_record`.
   defp score_candidate(%{id: id, summary: summary}, needle) do
     id_l = String.downcase(id)
     sum_l = summary |> to_string() |> String.downcase()
+
+    phrase =
+      max(
+        phrase_score(id_l, sum_l, needle),
+        phrase_score(id_l, sum_l, String.replace(needle, ~r/\s+/, "_"))
+      )
+
+    case String.split(needle) do
+      [_, _ | _] = words when phrase == 0 -> word_score(id_l, sum_l, words)
+      _ -> phrase
+    end
+  end
+
+  defp word_score(id_l, sum_l, words) do
+    matched =
+      Enum.filter(words, fn word ->
+        Enum.any?(word_forms(word), &(String.contains?(id_l, &1) or String.contains?(sum_l, &1)))
+      end)
+
+    in_id =
+      Enum.count(matched, fn word -> Enum.any?(word_forms(word), &String.contains?(id_l, &1)) end)
+
+    cond do
+      matched == [] -> 0
+      length(matched) == length(words) -> 200 + 10 * in_id
+      true -> 10 * length(matched) + 5 * in_id
+    end
+  end
+
+  # "runs" also matches `run_record`; very short words are left as typed.
+  defp word_forms(word) do
+    if String.length(word) > 3 and String.ends_with?(word, "s"),
+      do: [word, String.trim_trailing(word, "s")],
+      else: [word]
+  end
+
+  defp phrase_score(id_l, sum_l, needle) do
     segments = String.split(id_l, ".")
 
     cond do

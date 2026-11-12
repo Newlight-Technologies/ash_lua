@@ -81,6 +81,18 @@ defmodule AshLua.DocsTest do
       assert md =~ "- `filters` (topic)"
     end
 
+    # Catches: a natural-language search ("post comments") returning nothing
+    # because no identifier contains the whole phrase.
+    test "a phrase with no whole match falls back to its words, all-word matches first" do
+      md = AshLua.Docs.search(opts(), "post comments")
+
+      refute md =~ "_No matches._"
+      assert md =~ "`posts.comment`"
+
+      [first | _] = Regex.scan(~r/^- `([^`]+)`/m, md, capture: :all_but_first)
+      assert hd(first) =~ "comment"
+    end
+
     test "matches substrings in identifiers" do
       md = AshLua.Docs.search(opts(), "post")
 
