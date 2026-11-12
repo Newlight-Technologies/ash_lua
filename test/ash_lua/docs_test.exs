@@ -100,6 +100,12 @@ defmodule AshLua.DocsTest do
       assert results.("post comments") == results.("post on comments")
     end
 
+    # Catches: an inflected word ("commenting") missing the record it names.
+    test "a long word in a phrase also matches on its stem" do
+      md = AshLua.Docs.search(opts(), "post commenting")
+      assert md =~ "`posts.comment`"
+    end
+
     test "matches substrings in identifiers" do
       md = AshLua.Docs.search(opts(), "post")
 

@@ -1743,11 +1743,17 @@ defmodule AshLua.Docs do
     end
   end
 
-  # "runs" also matches `run_record`; very short words are left as typed.
+  # "runs" also matches `run_record`, and a long word also matches on its first five
+  # letters ("submitted" finds `form_submission`); short words are left as typed.
   defp word_forms(word) do
-    if String.length(word) > 3 and String.ends_with?(word, "s"),
-      do: [word, String.trim_trailing(word, "s")],
-      else: [word]
+    plural =
+      if String.length(word) > 3 and String.ends_with?(word, "s"),
+        do: [String.trim_trailing(word, "s")],
+        else: []
+
+    stem = if String.length(word) >= 7, do: [String.slice(word, 0, 5)], else: []
+
+    [word | plural ++ stem]
   end
 
   defp phrase_score(id_l, sum_l, needle) do
