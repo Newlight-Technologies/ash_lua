@@ -1717,8 +1717,12 @@ defmodule AshLua.Docs do
         phrase_score(id_l, sum_l, String.replace(needle, ~r/\s+/, "_"))
       )
 
-    case String.split(needle) do
-      [_, _ | _] = words when phrase == 0 -> word_score(id_l, sum_l, words)
+    # Words of two letters or fewer ("on", "of", "to") match almost everything.
+    words = needle |> String.split() |> Enum.filter(&(String.length(&1) > 2))
+
+    case words do
+      [_, _ | _] when phrase == 0 -> word_score(id_l, sum_l, words)
+      [_] when phrase == 0 -> word_score(id_l, sum_l, words)
       _ -> phrase
     end
   end

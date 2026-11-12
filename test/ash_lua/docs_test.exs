@@ -93,6 +93,13 @@ defmodule AshLua.DocsTest do
       assert hd(first) =~ "comment"
     end
 
+    # Catches: "on"/"of" in a natural-language phrase matching nearly every page and
+    # drowning the record whose summary matches every meaningful word.
+    test "short words in a phrase do not affect ranking" do
+      results = fn term -> Regex.scan(~r/^- `([^`]+)`/m, AshLua.Docs.search(opts(), term)) end
+      assert results.("post comments") == results.("post on comments")
+    end
+
     test "matches substrings in identifiers" do
       md = AshLua.Docs.search(opts(), "post")
 
