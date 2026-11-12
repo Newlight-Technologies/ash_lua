@@ -1073,7 +1073,7 @@ defmodule AshLua.Docs do
     fields_row =
       if accepts_fields?(action) do
         [
-          "| `fields` | _selection tree_ | no | which fields to return; default = primary key only |"
+          "| `fields` | list | no | which fields to return, e.g. `{ \"id\", { author = { \"name\" } } }` (related fields as a one-key table in the list); default = primary key only |"
         ]
       else
         []

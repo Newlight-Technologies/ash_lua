@@ -156,6 +156,8 @@ defmodule AshLua.DocsTest do
       {:ok, md} = AshLua.Docs.callable_doc(opts(), "posts.post.read")
 
       assert md =~ "**Operation:** `list`"
+      # Catches: the page naming the fields shape ("selection tree") without showing it.
+      assert md =~ ~s|{ author = { "name" } }|
       assert md =~ "| `filter` |"
       assert md =~ "| `sort` |"
       assert md =~ "| `limit` |"
