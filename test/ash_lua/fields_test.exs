@@ -185,6 +185,25 @@ defmodule AshLua.FieldsTest do
     end
   end
 
+  describe "Tier 1b — a nested selection written as a key of the list" do
+    # Catches: `fields = { "title", author = {...} }` (the natural Lua spelling)
+    # failing with a bare "`fields` must be a list" that does not say what to change.
+    test "names the keyed entry and shows the one-key table form" do
+      {[nil, err], _lua} =
+        AshLua.eval!(
+          """
+          return posts.post.read({ fields = { "title", author = { "name" } } })
+          """,
+          otp_app: :ash_lua
+        )
+
+      first = err |> Map.new() |> Map.get("errors") |> List.first() |> elem(1) |> Map.new()
+      assert first["code"] == "invalid_fields"
+      assert first["message"] =~ ~s|{ author = { "id" } }|
+      assert Lua.Table.as_list(first["fields"]) == ["author"]
+    end
+  end
+
   describe "Tier 2 — calculations with arguments" do
     test "calculation with arg" do
       {:ok, _} = Ash.create(Post, %{title: "abc"}, action: :create)

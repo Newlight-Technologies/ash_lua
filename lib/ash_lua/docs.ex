@@ -877,8 +877,11 @@ defmodule AshLua.Docs do
      ## Reserved input keys
 
       * `input` — action input values live inside this table.
-       * `fields` — which fields to return; selection tree (list of names and
-         nested tables). Default: primary key only.
+       * `fields` — which fields to return, as a list. Names select fields; a
+         one-key table inside the list selects a related record's (or a nested
+         value's) fields: `fields = { "id", "title", { author = { "id", "name" } } }`.
+         Writing `author = {...}` as a key of the list itself is an error.
+         Default: primary key only.
       * `filter` — narrow the result set by field values (list operations
         only). Shape is per-record-type; see each record type's page for the
         fields you can filter on.

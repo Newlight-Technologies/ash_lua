@@ -114,6 +114,32 @@ defmodule AshLua.Fields do
     end
   end
 
+  # A Lua table that mixes list items with `name = {...}` keys (or is only keys)
+  # decodes to a map. Name the keyed entries and show the one-key-table form, since
+  # that is almost always a relationship or sub-field selection written as a key.
+  def parse(map) when is_map(map) do
+    keyed =
+      map
+      |> Map.keys()
+      |> Enum.map(&to_string/1)
+      |> Enum.reject(&match?({_, ""}, Integer.parse(&1)))
+      |> Enum.sort()
+
+    case keyed do
+      [] ->
+        {:error, err("`fields` must be a list", "invalid_fields")}
+
+      [first | _] ->
+        {:error,
+         err(
+           "`fields` must be a list; write each nested selection as a one-key table " <>
+             "inside it, e.g. fields = { \"id\", { #{first} = { \"id\" } } }",
+           "invalid_fields",
+           keyed
+         )}
+    end
+  end
+
   def parse(_), do: {:error, err("`fields` must be a list", "invalid_fields")}
 
   defp parse_item(name) when is_binary(name), do: {:ok, [{:simple, name}]}
