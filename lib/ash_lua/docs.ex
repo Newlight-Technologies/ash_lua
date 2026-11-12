@@ -907,7 +907,9 @@ defmodule AshLua.Docs do
         before = "..." }` (list operations only).
       * `operation` — summarize the result set instead of returning records:
         `"count"`, `"exists"`, or `{ "sum" | "avg" | "min" | "max" | "count" |
-        "list" | "first", "<field>" }` (list operations only).
+        "list" | "first", "<field>" }` (list operations only). `min`, `max`,
+        `avg`, `sum` and `first` return `nil` with no error when nothing
+        matches, so check for `nil` rather than wrapping them in `assert`.
 
     Record type identifiers are documentation identifiers, not necessarily
     callable Lua namespaces. A flattened callable such as `surface.page_list`

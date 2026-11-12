@@ -225,6 +225,13 @@ defmodule AshLua.DocsTest do
       refute md =~ "has_many"
     end
 
+    # Catches: a script asserting an aggregate over no rows and dying on
+    # "assertion failed: nil" because the docs never said it returns nil.
+    test "the reserved keys say empty aggregates return nil" do
+      md = AshLua.Docs.index_doc(opts())
+      assert md =~ "return `nil` with no error when nothing"
+    end
+
     # Catches: a record page with no route to the operations that read it, so a
     # model that opens the record type cannot find its (differently named) read.
     test "a record page names the operations that act on it" do
