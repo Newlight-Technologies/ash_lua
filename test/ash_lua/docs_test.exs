@@ -284,6 +284,14 @@ defmodule AshLua.DocsTest do
       assert post =~ "| `operation` |"
     end
 
+    test "a paginated read states its page cap and where paged rows are" do
+      # A model asked for limit = 1000 got 100 rows a page with no hint why.
+      {:ok, md} = AshLua.Docs.callable_doc(opts(), "posts.reading.latest")
+
+      assert md =~ "At most 100 records per page"
+      assert md =~ "when the result has `results`, the rows are there"
+    end
+
     test "an atom field with one_of constraints lists its values" do
       {:ok, md} = AshLua.Docs.type_doc(opts(), "posts.comment")
 

@@ -1203,8 +1203,18 @@ defmodule AshLua.Docs do
     """
     A list of #{record_link(resource_module, resource_lookup)} records.
 
-    When called with a `page` input, returns a `{ results, #{count}limit, offset|before+after, more? }` table instead.
+    When called with a `page` input, returns a `{ results, #{count}limit, offset|before+after, more? }` table instead. Some hosts page every list read; when the result has `results`, the rows are there.#{page_cap(resource_module, action.name)}
     """
+  end
+
+  defp page_cap(resource_module, action_name) do
+    case Ash.Resource.Info.action(resource_module, action_name) do
+      %{pagination: %{max_page_size: max}} when is_integer(max) ->
+        " At most #{max} records per page; a larger `limit` is reduced to #{max}, so follow `more?`."
+
+      _ ->
+        ""
+    end
   end
 
   defp return_type_text(%Manifest.Action{type: :action, returns: nil}, _, _, _) do
