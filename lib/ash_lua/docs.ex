@@ -1590,6 +1590,11 @@ defmodule AshLua.Docs do
   defp type_summary(%Manifest.Type{kind: :array, item_type: inner}),
     do: "[#{type_summary(inner)}]"
 
+  # An atom with `one_of` constraints is an anonymous enum named "Enum", which
+  # has no page of its own: list its values where the field is shown.
+  defp type_summary(%Manifest.Type{kind: :enum, name: "Enum", values: [_ | _] = values}),
+    do: "one of: " <> Enum.map_join(values, ", ", &to_string/1)
+
   defp type_summary(%Manifest.Type{kind: :enum, name: name}), do: "enum:#{name}"
   defp type_summary(%Manifest.Type{kind: :union}), do: "one-of"
 

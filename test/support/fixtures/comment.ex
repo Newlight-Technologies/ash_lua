@@ -32,6 +32,11 @@ defmodule AshLua.Test.Posts.Comment do
     attribute :tip, AshLua.Test.Posts.OpaqueAmount do
       public? true
     end
+
+    attribute :mood, :atom do
+      public? true
+      constraints one_of: [:pleased, :annoyed]
+    end
   end
 
   relationships do

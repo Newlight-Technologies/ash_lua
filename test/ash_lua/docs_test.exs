@@ -266,6 +266,13 @@ defmodule AshLua.DocsTest do
       assert md =~ "string"
     end
 
+    test "an atom field with one_of constraints lists its values" do
+      {:ok, md} = AshLua.Docs.type_doc(opts(), "posts.comment")
+
+      assert md =~ "| `mood` | `one of: pleased, annoyed`"
+      refute md =~ "enum:Enum"
+    end
+
     test "a type the manifest cannot classify is named, not shown as unknown" do
       {:ok, md} = AshLua.Docs.type_doc(opts(), "posts.comment")
 
