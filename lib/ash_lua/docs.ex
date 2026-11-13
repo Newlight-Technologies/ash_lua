@@ -991,7 +991,7 @@ defmodule AshLua.Docs do
       )
 
     pk_rows = pk_rows(action, resource)
-    reserved_rows = reserved_rows(action)
+    reserved_rows = reserved_rows(action, resource.module)
     action_input_rows = input_rows ++ pk_rows
 
     rows = input_container_rows(action_input_rows) ++ action_input_rows ++ reserved_rows
@@ -1102,7 +1102,9 @@ defmodule AshLua.Docs do
 
   defp pk_rows(_, _), do: []
 
-  defp reserved_rows(action) do
+  defp reserved_rows(action, resource_module) do
+    aggregates? = AshLua.Capabilities.aggregate_queries?(resource_module)
+
     fields_row =
       if accepts_fields?(action) do
         [
@@ -1119,9 +1121,17 @@ defmodule AshLua.Docs do
           "| `sort` | string or list | no | sort order (`-` prefix for descending) |",
           "| `limit` | integer | no | maximum records to return |",
           "| `offset` | integer | no | records to skip |",
-          "| `page` | table | no | pagination: `{ limit = n, offset = n, after = \"...\", before = \"...\" }` |",
-          "| `operation` | string or `{ kind, field }` | no | summarize the result set instead of returning records: `\"count\"`, `\"exists\"`, or `{ \"sum\"\\|\"avg\"\\|\"min\"\\|\"max\"\\|\"count\"\\|\"list\"\\|\"first\", \"<field>\" }` |"
-        ]
+          "| `page` | table | no | pagination: `{ limit = n, offset = n, after = \"...\", before = \"...\" }` |"
+        ] ++
+          if aggregates? do
+            [
+              "| `operation` | string or `{ kind, field }` | no | summarize the result set instead of returning records: `\"count\"`, `\"exists\"`, or `{ \"sum\"\\|\"avg\"\\|\"min\"\\|\"max\"\\|\"count\"\\|\"list\"\\|\"first\", \"<field>\" }` |"
+            ]
+          else
+            [
+              "| _(no `operation` or `page.count`)_ | | | these records are computed per request and cannot be counted or aggregated by the query; count or total the returned rows in the script |"
+            ]
+          end
       else
         []
       end
@@ -1176,10 +1186,12 @@ defmodule AshLua.Docs do
   end
 
   defp return_type_text(%Manifest.Action{type: :read}, resource_module, resource_lookup, _) do
+    count = if AshLua.Capabilities.aggregate_queries?(resource_module), do: "count, ", else: ""
+
     """
     A list of #{record_link(resource_module, resource_lookup)} records.
 
-    When called with a `page` input, returns a `{ results, count, limit, offset|before+after, more? }` table instead.
+    When called with a `page` input, returns a `{ results, #{count}limit, offset|before+after, more? }` table instead.
     """
   end
 

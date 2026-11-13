@@ -18,5 +18,6 @@ defmodule AshLua.Test.Posts do
     resource AshLua.Test.Posts.SecretPost
     resource AshLua.Test.Posts.ForbiddenDisplayMCPActions
     resource AshLua.Test.Posts.PaginatedMCPActions
+    resource AshLua.Test.Posts.Reading
   end
 end

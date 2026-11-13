@@ -273,6 +273,17 @@ defmodule AshLua.DocsTest do
       assert md =~ "default: `newest`"
     end
 
+    test "a read whose data layer cannot aggregate does not offer operation or page counts" do
+      {:ok, md} = AshLua.Docs.callable_doc(opts(), "posts.reading.latest")
+
+      refute md =~ "| `operation` |"
+      assert md =~ "cannot be counted or aggregated by the query"
+      assert md =~ "`{ results, limit, offset"
+
+      {:ok, post} = AshLua.Docs.callable_doc(opts(), "posts.post.ranked")
+      assert post =~ "| `operation` |"
+    end
+
     test "an atom field with one_of constraints lists its values" do
       {:ok, md} = AshLua.Docs.type_doc(opts(), "posts.comment")
 

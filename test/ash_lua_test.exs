@@ -191,6 +191,30 @@ defmodule AshLuaTest do
       assert Lua.Table.as_list(sorted) == ["Apple", "Banana", "Cherry"]
     end
 
+    test "records computed per request filter and sort, and refuse counts with a usable error" do
+      {[rows, count_err, page_err], _lua} =
+        AshLua.eval!(
+          """
+          local rows = assert(posts.reading.latest({
+            input = { sensor = "t1" }, filter = { value = { gt = 4 } }, sort = "-value",
+            fields = { "value" }
+          }))
+          local _, count_err = posts.reading.latest({ input = { sensor = "t1" }, operation = "count" })
+          local _, page_err = posts.reading.latest({ input = { sensor = "t1" }, page = { limit = 1, count = true } })
+          local values = {}
+          for i, r in ipairs(rows) do values[i] = r.value end
+          return values, count_err.errors[1].code, page_err.errors[1].code
+          """,
+          otp_app: :ash_lua
+        )
+
+      assert Lua.Table.as_list(rows) == [9.0, 6.25]
+      # Ash fails these as an unknown error from the data layer; the model needs
+      # to know to count the rows it reads instead.
+      assert count_err == "aggregates_unavailable"
+      assert page_err == "aggregates_unavailable"
+    end
+
     test "`input.limit` and the `limit` control apply independently" do
       for title <- ~w(ab abcd abcdef) do
         {:ok, _} = Ash.create(Post, %{title: title}, action: :create)

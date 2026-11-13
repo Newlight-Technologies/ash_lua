@@ -617,6 +617,10 @@ defmodule AshLua.Runtime do
         operation = AshLua.FieldNames.to_internal_operation(resource, operation)
 
         cond do
+          action.type == :read and not AshLua.Capabilities.aggregate_queries?(resource) and
+              (not is_nil(operation) or page_count?(controls)) ->
+            encode_error_response(state, no_aggregates_error())
+
           is_nil(operation) ->
             regular_call(
               resource,
@@ -664,6 +668,25 @@ defmodule AshLua.Runtime do
       {:error, error} ->
         encode_error_response(state, error)
     end
+  end
+
+  defp page_count?(%{"page" => page}) when is_map(page),
+    do: Map.get(page, "count") == true or Map.get(page, :count) == true
+
+  defp page_count?(%{"page" => page}) when is_list(page), do: Keyword.get(page, :count) == true
+  defp page_count?(_controls), do: false
+
+  defp no_aggregates_error do
+    %AshLua.Errors.FieldsError{
+      message:
+        "these records are computed for each request, so the query cannot count or " <>
+          "aggregate them (`operation` and `page.count` are unavailable); read the rows " <>
+          "and count or total them in the script, e.g. `#rows`",
+      short_message: "count and operation unavailable",
+      code: "aggregates_unavailable",
+      fields: [],
+      vars: %{}
+    }
   end
 
   defp split_call_input(input) do
