@@ -617,8 +617,10 @@ defmodule AshLua.Runtime do
         operation = AshLua.FieldNames.to_internal_operation(resource, operation)
 
         cond do
-          action.type == :read and not AshLua.Capabilities.aggregate_queries?(resource) and
-              (not is_nil(operation) or page_count?(controls)) ->
+          action.type == :read and
+              ((not is_nil(operation) and not AshLua.Capabilities.aggregate_queries?(resource)) or
+                 (page_count?(controls) and
+                    not AshLua.Capabilities.page_counts?(resource, action.name))) ->
             encode_error_response(state, no_aggregates_error())
 
           is_nil(operation) ->

@@ -1129,7 +1129,11 @@ defmodule AshLua.Docs do
             ]
           else
             [
-              "| _(no `operation` or `page.count`)_ | | | these records are computed per request and cannot be counted or aggregated by the query; count or total the returned rows in the script |"
+              if AshLua.Capabilities.page_counts?(resource_module, action.name) do
+                "| _(no `operation`)_ | | | these records are computed per request and cannot be aggregated by the query; use `page.count` for a total, or total the returned rows in the script |"
+              else
+                "| _(no `operation` or `page.count`)_ | | | these records are computed per request and cannot be counted or aggregated by the query; count or total the returned rows in the script |"
+              end
             ]
           end
       else
@@ -1185,8 +1189,16 @@ defmodule AshLua.Docs do
       record_link(resource_module, resource_lookup) <> " record (or `nil` if not found)."
   end
 
-  defp return_type_text(%Manifest.Action{type: :read}, resource_module, resource_lookup, _) do
-    count = if AshLua.Capabilities.aggregate_queries?(resource_module), do: "count, ", else: ""
+  defp return_type_text(
+         %Manifest.Action{type: :read} = action,
+         resource_module,
+         resource_lookup,
+         _
+       ) do
+    count =
+      if AshLua.Capabilities.page_counts?(resource_module, action.name),
+        do: "count, ",
+        else: ""
 
     """
     A list of #{record_link(resource_module, resource_lookup)} records.
