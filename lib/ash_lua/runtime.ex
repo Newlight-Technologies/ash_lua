@@ -1022,7 +1022,24 @@ defmodule AshLua.Runtime do
   # deep inside the filter parser. Treat any such raise as invalid input on
   # `filter` rather than letting it escape to the script.
   defp maybe_filter_input(query, filter) do
-    Ash.Query.filter_input(query, filter)
+    case misplaced_combinator(query.resource, filter) do
+      nil ->
+        Ash.Query.filter_input(query, filter)
+
+      field ->
+        # Ash reads `{field = {["not"] = {...}}}` as a value comparison and the
+        # query fails at the database with no usable message; say what works.
+        Ash.Query.add_error(query, :filter, %AshLua.Errors.FieldsError{
+          message:
+            "`and`, `or` and `not` combine whole filters, not a field's operators: " <>
+              "write `[\"not\"] = { #{field} = { ... } }` instead of " <>
+              "`#{field} = { [\"not\"] = { ... } }`",
+          short_message: "invalid filter",
+          code: "invalid_filter",
+          fields: ["filter"],
+          vars: %{field: field}
+        })
+    end
   rescue
     _exception ->
       Ash.Query.add_error(query, :filter, %AshLua.Errors.FieldsError{
@@ -1048,6 +1065,33 @@ defmodule AshLua.Runtime do
         vars: %{}
       })
   end
+
+  @combinators ["and", "or", "not", :and, :or, :not]
+
+  # Returns the first non-relationship field whose operator table holds a
+  # combinator, walking into combinators and relationship tables.
+  defp misplaced_combinator(resource, filter) when is_map(filter) do
+    Enum.find_value(filter, fn {key, value} ->
+      cond do
+        key in @combinators ->
+          value |> List.wrap() |> Enum.find_value(&misplaced_combinator(resource, &1))
+
+        not is_map(value) ->
+          nil
+
+        relationship = Ash.Resource.Info.relationship(resource, to_string(key)) ->
+          misplaced_combinator(relationship.destination, value)
+
+        Enum.any?(Map.keys(value), &(&1 in @combinators)) ->
+          to_string(key)
+
+        true ->
+          nil
+      end
+    end)
+  end
+
+  defp misplaced_combinator(_resource, _filter), do: nil
 
   defp maybe_limit(query, nil), do: query
   defp maybe_limit(query, limit), do: Ash.Query.limit(query, limit)

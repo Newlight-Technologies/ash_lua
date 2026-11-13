@@ -112,6 +112,29 @@ defmodule AshLua.EvalTest do
       assert message =~ ~s|["not"]|
     end
 
+    # Catches: `not` placed inside a field's operator table, which Ash reads as a
+    # value comparison and which then failed in the data layer as unknown_error.
+    test "a combinator inside a field's operators is an invalid filter that names the fix" do
+      assert {:ok, %{error: err}} =
+               AshLua.Eval.run(
+                 """
+                 return posts.post.read({ filter = { title = { ["not"] = { contains = "a" } } } })
+                 """,
+                 otp_app: :ash_lua
+               )
+
+      assert [%{"code" => "invalid_filter", "message" => message}] = err["errors"]
+      assert message =~ ~s|["not"] = { title = { ... } }|
+
+      assert {:ok, %{error: nil}} =
+               AshLua.Eval.run(
+                 """
+                 return assert(posts.post.read({ filter = { ["not"] = { title = { contains = "a" } } } }))
+                 """,
+                 otp_app: :ash_lua
+               )
+    end
+
     test "a malformed sort returns an invalid_sort error instead of aborting" do
       assert {:ok, %{result: nil, error: err, print_output: []}} =
                AshLua.Eval.run(
