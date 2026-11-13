@@ -1034,13 +1034,44 @@ defmodule AshLua.Docs do
     notes =
       [
         input.description,
-        if(input.has_default?, do: "has default"),
+        if(input.has_default?, do: default_note(input, action, resource)),
         if(input.sensitive?, do: "sensitive")
       ]
       |> Enum.reject(&(is_nil(&1) or &1 == ""))
       |> Enum.join("; ")
 
     "| `input.#{name}` | #{type_link(input.type, resource_lookup, type_lookup)} | #{required} | #{notes} |"
+  end
+
+  # The manifest records only that a default exists. Name it when it is a plain
+  # value, so a caller knows what an omitted input means (`status_filter`
+  # defaulting to `all`, say); a function default stays "has default".
+  defp default_note(%Manifest.Argument{name: name}, %Manifest.Action{name: action_name}, resource) do
+    with %{} = action <- Ash.Resource.Info.action(resource.module, action_name),
+         {:ok, value} <- literal_default(action, resource.module, name) do
+      "default: `#{value}`"
+    else
+      _ -> "has default"
+    end
+  end
+
+  defp literal_default(action, module, name) do
+    default =
+      case Enum.find(Map.get(action, :arguments, []), &(&1.name == name)) do
+        %{default: default} ->
+          default
+
+        nil ->
+          case Ash.Resource.Info.attribute(module, name) do
+            %{default: default} -> default
+            _ -> nil
+          end
+      end
+
+    if is_nil(default) or is_function(default) or is_tuple(default) or is_map(default) or
+         is_list(default),
+       do: :error,
+       else: {:ok, default}
   end
 
   defp input_name(

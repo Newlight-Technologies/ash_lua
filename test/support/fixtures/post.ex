@@ -39,6 +39,9 @@ defmodule AshLua.Test.Posts.Post do
     # Ranks by a default sort, as many host read actions do. A caller's sort
     # must replace it, not trail behind it as a tie-breaker.
     read :ranked do
+      # Unused by the action; documents a literal default.
+      argument :order, :atom, default: :newest, constraints: [one_of: [:newest, :oldest]]
+
       prepare build(default_sort: [title: :desc])
     end
 

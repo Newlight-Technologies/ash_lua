@@ -266,6 +266,13 @@ defmodule AshLua.DocsTest do
       assert md =~ "string"
     end
 
+    test "an input's literal default is named" do
+      {:ok, md} = AshLua.Docs.callable_doc(opts(), "posts.post.ranked")
+
+      assert md =~ "| `input.order` |"
+      assert md =~ "default: `newest`"
+    end
+
     test "an atom field with one_of constraints lists its values" do
       {:ok, md} = AshLua.Docs.type_doc(opts(), "posts.comment")
 
