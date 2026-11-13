@@ -167,6 +167,30 @@ defmodule AshLuaTest do
       assert control == 1
     end
 
+    test "a caller's sort replaces the action's default sort" do
+      for title <- ~w(Apple Cherry Banana) do
+        {:ok, _} = Ash.create(Post, %{title: title}, action: :create)
+      end
+
+      {[default, sorted], _lua} =
+        AshLua.eval!(
+          """
+          local function titles(r)
+            local t = {}
+            for i, post in ipairs(r) do t[i] = post.title end
+            return t
+          end
+          local d = assert(posts.post.ranked({ fields = { "title" } }))
+          local s = assert(posts.post.ranked({ sort = "title", fields = { "title" } }))
+          return titles(d), titles(s)
+          """,
+          otp_app: :ash_lua
+        )
+
+      assert Lua.Table.as_list(default) == ["Cherry", "Banana", "Apple"]
+      assert Lua.Table.as_list(sorted) == ["Apple", "Banana", "Cherry"]
+    end
+
     test "`input.limit` and the `limit` control apply independently" do
       for title <- ~w(ab abcd abcdef) do
         {:ok, _} = Ash.create(Post, %{title: title}, action: :create)

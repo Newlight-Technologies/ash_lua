@@ -800,11 +800,15 @@ defmodule AshLua.Runtime do
   defp run_read_operation(resource, action, input, controls, opts, operation) do
     %{filter: filter, sort: sort, limit: limit, offset: offset} = read_controls(controls)
 
+    # The sort goes on before `for_read/4` so an action's `default_sort`
+    # preparation sees it and stands aside; applied after, a caller's sort
+    # would only break ties in the default order.
     query =
       resource
+      |> Ash.Query.new()
+      |> maybe_sort_input(sort)
       |> Ash.Query.for_read(action.name, input, opts)
       |> maybe_filter_input(filter)
-      |> maybe_sort_input(sort)
       |> maybe_limit(limit)
       |> maybe_offset(offset)
 
@@ -929,13 +933,15 @@ defmodule AshLua.Runtime do
     %{page: page_opt, filter: filter, sort: sort, limit: limit, offset: offset} =
       read_controls(controls)
 
+    # Sort before `for_read/4`; see `run_read_operation/6`.
     query =
       resource
+      |> Ash.Query.new()
+      |> maybe_sort_input(sort)
       |> Ash.Query.for_read(action.name, input, opts)
       |> maybe_select(select)
       |> maybe_load(load)
       |> maybe_filter_input(filter)
-      |> maybe_sort_input(sort)
       |> maybe_limit(limit)
       |> maybe_offset(offset)
       |> maybe_page(page_opt)

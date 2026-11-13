@@ -36,6 +36,12 @@ defmodule AshLua.Test.Posts.Post do
       end
     end
 
+    # Ranks by a default sort, as many host read actions do. A caller's sort
+    # must replace it, not trail behind it as a tie-breaker.
+    read :ranked do
+      prepare build(default_sort: [title: :desc])
+    end
+
     # Raises from inside the action so tests can check that a host exception
     # is returned to the script as a structured error rather than aborting it.
     action :explode, :integer do
