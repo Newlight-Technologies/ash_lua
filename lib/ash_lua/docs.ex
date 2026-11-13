@@ -1603,6 +1603,12 @@ defmodule AshLua.Docs do
   defp type_summary(%Manifest.Type{kind: :resource}), do: "record"
   defp type_summary(%Manifest.Type{kind: :embedded_resource}), do: "embedded record"
   defp type_summary(%Manifest.Type{kind: :type_ref, name: name}), do: name
+  # Ash's manifest cannot classify some library types (money, for example);
+  # name the type rather than print "unknown".
+  defp type_summary(%Manifest.Type{kind: :unknown, module: module})
+       when is_atom(module) and not is_nil(module),
+       do: module |> AshLua.Type.type_name() |> Macro.underscore()
+
   defp type_summary(%Manifest.Type{kind: kind}), do: Atom.to_string(kind)
 
   defp record_link(module, resource_lookup) do

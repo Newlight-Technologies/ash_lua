@@ -28,6 +28,10 @@ defmodule AshLua.Test.Posts.Comment do
     attribute :rating, :integer do
       public? true
     end
+
+    attribute :tip, AshLua.Test.Posts.OpaqueAmount do
+      public? true
+    end
   end
 
   relationships do

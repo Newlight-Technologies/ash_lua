@@ -266,6 +266,13 @@ defmodule AshLua.DocsTest do
       assert md =~ "string"
     end
 
+    test "a type the manifest cannot classify is named, not shown as unknown" do
+      {:ok, md} = AshLua.Docs.type_doc(opts(), "posts.comment")
+
+      assert md =~ "| `tip` | `opaque_amount`"
+      refute md =~ "`unknown`"
+    end
+
     test "record-type page cross-links to named-type pages for enum + NewType fields" do
       {:ok, md} = AshLua.Docs.type_doc(opts(), "posts.post")
 
