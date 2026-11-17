@@ -28,7 +28,11 @@ defmodule AshLua.EvalActions.Run.Docs do
     name = Map.get(input.arguments, :name)
 
     [eval_resource: input.resource, cache?: true]
-    |> AshLua.Eval.docs(name: name, search: Map.get(input.arguments, :search))
+    |> AshLua.Eval.docs(
+      name: name,
+      search: Map.get(input.arguments, :search),
+      fields: Map.get(input.arguments, :fields)
+    )
     |> maybe_append_pagination_note(input.resource, name)
   end
 

@@ -142,6 +142,8 @@ defmodule AshLua.Eval do
   Pass neither `:name` nor `:search` (or `name: "abridged"`) for one line per
   operation. Pass `name: "full"` for the full page, a callable/type/topic id
   for a focused page, or `search: term` for ranked search results.
+  For a record type, `fields: []` returns its field-name catalog; a list of
+  names renders only those fields and relationships with their full contracts.
   """
   @spec docs(Manifest.t() | manifest_opts(), keyword() | map()) ::
           {:ok, String.t()} | {:error, term()}
@@ -152,7 +154,7 @@ defmodule AshLua.Eval do
   end
 
   def docs(opts, []) when is_list(opts) do
-    args = Keyword.take(opts, [:name, :search])
+    args = Keyword.take(opts, [:name, :search, :fields])
 
     with {:ok, %Manifest{} = manifest} <- manifest(opts) do
       dispatch_docs(manifest, normalize_doc_args(args))
@@ -369,14 +371,16 @@ defmodule AshLua.Eval do
   defp normalize_doc_args(args) when is_map(args) do
     %{
       name: Map.get(args, :name) || Map.get(args, "name"),
-      search: Map.get(args, :search) || Map.get(args, "search")
+      search: Map.get(args, :search) || Map.get(args, "search"),
+      fields: Map.get(args, :fields) || Map.get(args, "fields")
     }
   end
 
   defp normalize_doc_args(args) when is_list(args) do
     %{
       name: keyword_or_string(args, :name),
-      search: keyword_or_string(args, :search)
+      search: keyword_or_string(args, :search),
+      fields: keyword_or_string(args, :fields)
     }
   end
 
@@ -390,6 +394,19 @@ defmodule AshLua.Eval do
           {_key, value} -> value
           nil -> nil
         end
+    end
+  end
+
+  defp dispatch_docs(manifest, %{name: name, search: search, fields: fields})
+       when not is_nil(fields) do
+    if is_binary(name) and name != "" and search in [nil, ""] do
+      AshLua.Docs.type_doc(manifest, name, fields: fields)
+    else
+      {:error,
+       Ash.Error.Action.InvalidArgument.exception(
+         field: :fields,
+         message: "requires a record-type `name`, without `search`"
+       )}
     end
   end
 

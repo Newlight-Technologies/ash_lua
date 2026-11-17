@@ -7,6 +7,25 @@ defmodule AshLua.DocsTest do
 
   defp opts, do: [otp_app: :ash_lua]
 
+  test "field projection is validated and does not mutate the full docs" do
+    {:ok, full} = AshLua.Eval.docs(opts(), name: "posts.post")
+    {:ok, catalog} = AshLua.Eval.docs(opts(), name: "posts.post", fields: [])
+    assert catalog =~ "Field-name catalog"
+    assert catalog =~ "`title`"
+    {:ok, selected} = AshLua.Eval.docs(opts(), name: "posts.post", fields: ["title"])
+    assert selected =~ "| `title` |"
+    refute selected =~ "| `id` |"
+    assert {:ok, ^full} = AshLua.Eval.docs(opts(), name: "posts.post")
+
+    for args <- [
+          [name: "posts.post", fields: ["unknown"]],
+          [name: "posts.post.read", fields: []],
+          [search: "post", fields: []]
+        ] do
+      assert {:error, %Ash.Error.Action.InvalidArgument{}} = AshLua.Eval.docs(opts(), args)
+    end
+  end
+
   describe "list_callables/1" do
     test "enumerates every operation path, sorted" do
       callables = AshLua.Docs.list_callables(opts())

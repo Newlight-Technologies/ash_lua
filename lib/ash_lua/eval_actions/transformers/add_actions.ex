@@ -49,10 +49,16 @@ defmodule AshLua.EvalActions.Transformers.AddActions do
            Builder.build_action_argument(:search, :string,
              allow_nil?: true,
              description: "A keyword to search the index for."
+           ),
+         {:ok, fields_arg} <-
+           Builder.build_action_argument(:fields, {:array, :string},
+             allow_nil?: true,
+             description:
+               "For a record type, [] lists field names; a list renders their full contracts. Omit for the full page."
            ) do
       Builder.add_new_action(dsl_state, :action, name,
         returns: :string,
-        arguments: [name_arg, search_arg],
+        arguments: [name_arg, search_arg, fields_arg],
         run: AshLua.EvalActions.Run.Docs
       )
     end

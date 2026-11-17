@@ -12,6 +12,18 @@ defmodule AshLua.EvalActionsTest do
     :persistent_term.get({AshLua.Surface, :eval_manifest_cache}, %{})
   end
 
+  test "synthesized docs action accepts field projection without narrowing eval" do
+    input =
+      Ash.ActionInput.for_action(MCPActions, :docs, %{name: "posts.post", fields: ["title"]})
+
+    assert {:ok, page} = Ash.run_action(input)
+    assert page =~ "| `title` |"
+    refute page =~ "| `id` |"
+    input = Ash.ActionInput.for_action(MCPActions, :docs, %{name: "posts.post"})
+    assert {:ok, full} = Ash.run_action(input)
+    assert full =~ "| `id` |"
+  end
+
   describe "synthesized :eval action" do
     test "runs a Lua script against the scoped Lua surface" do
       {:ok, _} = Ash.create(Post, %{title: "Hello"}, action: :create)

@@ -434,6 +434,22 @@ defmodule AshLua.Docs do
   end
 
   @doc """
+  Renders selected record fields and relationships using their complete contracts.
+  `fields: []` returns a names-only catalog. Omit `:fields` for the full page.
+  Unknown fields and non-record targets return an invalid-argument error.
+  Projection is documentation-only and never changes the evaluation manifest.
+  """
+  def type_doc(manifest_or_opts, identifier, opts) do
+    case Keyword.get(opts, :fields) do
+      nil ->
+        type_doc(manifest_or_opts, identifier)
+
+      fields ->
+        AshLua.Docs.Projection.render(ensure_manifest(manifest_or_opts), identifier, fields)
+    end
+  end
+
+  @doc """
   Renders the markdown for one type. Accepts either:
 
     * A Lua path string like `"posts.post"` (record type).
