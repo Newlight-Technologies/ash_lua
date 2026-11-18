@@ -251,6 +251,20 @@ defmodule AshLua.EvalTest do
   end
 
   describe "returned error tables" do
+    test "a host observer sees a failed write even when Lua ignores its result" do
+      owner = self()
+
+      assert {:ok, %{result: 7, error: nil}} =
+               AshLua.Eval.run("posts.post.create({input = {body = 'no title'}}); return 7",
+                 otp_app: :ash_lua,
+                 on_action_error: fn resource, action ->
+                   send(owner, {:failed, resource, action.name, action.type})
+                 end
+               )
+
+      assert_received {:failed, _, :create, :create}
+    end
+
     test "a returned error table is converted at every depth and is JSON-encodable" do
       assert {:ok, %{result: nil, error: err} = run_result} =
                AshLua.Eval.run(

@@ -53,6 +53,7 @@ defmodule AshLua.Runtime do
         :manifest,
         :lua,
         :lua_options,
+        :on_action_error,
         forbidden_fields: :hide,
         require_pagination?: false,
         default_page_size: 25
@@ -84,7 +85,7 @@ defmodule AshLua.Runtime do
     lua
     |> Lua.put_private(@private_key, private)
     |> install_print_capture()
-    |> install_surface(manifest)
+    |> install_surface(manifest, opts[:on_action_error])
     |> install_utils(manifest)
   end
 
@@ -169,7 +170,7 @@ defmodule AshLua.Runtime do
     Lua.eval!(lua, script, script_opts)
   end
 
-  defp install_surface(lua, %Manifest{entrypoints: entrypoints} = manifest) do
+  defp install_surface(lua, %Manifest{entrypoints: entrypoints} = manifest, on_error) do
     lua =
       entrypoints
       |> Enum.flat_map(&path_prefixes(parent_path(AshLua.Surface.path(&1))))
@@ -184,7 +185,8 @@ defmodule AshLua.Runtime do
         build_action_callback(
           entrypoint.resource,
           entrypoint.action,
-          manifest
+          manifest,
+          on_error
         )
 
       Lua.set!(lua, AshLua.Surface.path(entrypoint), callback)
@@ -576,14 +578,22 @@ defmodule AshLua.Runtime do
   defp to_message_string(nil), do: "lua error"
   defp to_message_string(_other), do: "lua error"
 
-  defp build_action_callback(resource, action, manifest) do
+  defp build_action_callback(resource, action, manifest, on_error) do
     fn args, state ->
-      try do
-        run_action_callback(resource, action, manifest, args, state)
-      rescue
-        exception ->
-          encode_host_exception(state, resource, action, exception, __STACKTRACE__)
+      response =
+        try do
+          run_action_callback(resource, action, manifest, args, state)
+        rescue
+          exception ->
+            encode_host_exception(state, resource, action, exception, __STACKTRACE__)
+        end
+
+      # Observe the host result before Lua can discard it or catch an assertion.
+      if on_error && match?({[nil, error], _} when not is_nil(error), response) do
+        on_error.(resource, action)
       end
+
+      response
     end
   end
 

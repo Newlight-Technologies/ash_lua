@@ -41,6 +41,7 @@ defmodule AshLua.Eval do
           | {:default_page_size, pos_integer()}
           | {:lua, Lua.t()}
           | {:lua_options, keyword()}
+          | {:on_action_error, (module(), map() -> term())}
           | {:source, String.t()}
           | {:manifest, Manifest.t()}
           | {:eval_resource, module()}
@@ -124,8 +125,9 @@ defmodule AshLua.Eval do
 
   The surface is resolved with `manifest/1`. Runtime options include
   `:actor`, `:tenant`, `:context`, `:forbidden_fields`, `:require_pagination?`,
-  `:default_page_size`, `:source`, `:lua`, and `:lua_options`. `:lua_options` is forwarded to `Lua.new/1` when a prebuilt
-  `:lua` VM is not supplied.
+  `:default_page_size`, `:on_action_error`, `:source`, `:lua`, and `:lua_options`. `:lua_options` is forwarded to `Lua.new/1` when a prebuilt
+  `:lua` VM is not supplied. The optional host callback `:on_action_error` receives the
+  resource and action when a binding returns an error, even if the script ignores it.
   """
   @spec run(String.t(), run_opts()) :: {:ok, run_result()} | {:error, term()}
   def run(script, opts) when is_binary(script) and is_list(opts) do
@@ -179,6 +181,7 @@ defmodule AshLua.Eval do
     |> maybe_put(:default_page_size, Keyword.get(opts, :default_page_size))
     |> maybe_put(:lua, Keyword.get(opts, :lua))
     |> maybe_put(:lua_options, Keyword.get(opts, :lua_options))
+    |> maybe_put(:on_action_error, Keyword.get(opts, :on_action_error))
     |> maybe_put(:source, Keyword.get(opts, :source))
   end
 
