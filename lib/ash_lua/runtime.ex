@@ -53,6 +53,7 @@ defmodule AshLua.Runtime do
         :manifest,
         :lua,
         :lua_options,
+        :on_action_error,
         forbidden_fields: :hide,
         require_pagination?: false,
         default_page_size: 25
@@ -84,7 +85,7 @@ defmodule AshLua.Runtime do
     lua
     |> Lua.put_private(@private_key, private)
     |> install_print_capture()
-    |> install_surface(manifest)
+    |> install_surface(manifest, opts[:on_action_error])
     |> install_utils(manifest)
   end
 
@@ -169,7 +170,7 @@ defmodule AshLua.Runtime do
     Lua.eval!(lua, script, script_opts)
   end
 
-  defp install_surface(lua, %Manifest{entrypoints: entrypoints} = manifest) do
+  defp install_surface(lua, %Manifest{entrypoints: entrypoints} = manifest, on_error) do
     lua =
       entrypoints
       |> Enum.flat_map(&path_prefixes(parent_path(AshLua.Surface.path(&1))))
@@ -184,7 +185,8 @@ defmodule AshLua.Runtime do
         build_action_callback(
           entrypoint.resource,
           entrypoint.action,
-          manifest
+          manifest,
+          on_error
         )
 
       Lua.set!(lua, AshLua.Surface.path(entrypoint), callback)
@@ -576,13 +578,24 @@ defmodule AshLua.Runtime do
   defp to_message_string(nil), do: "lua error"
   defp to_message_string(_other), do: "lua error"
 
-  defp build_action_callback(resource, action, manifest) do
+  defp build_action_callback(resource, action, manifest, on_error) do
     fn args, state ->
-      try do
-        run_action_callback(resource, action, manifest, args, state)
-      rescue
-        exception ->
-          encode_host_exception(state, resource, action, exception, __STACKTRACE__)
+      response =
+        try do
+          run_action_callback(resource, action, manifest, args, state)
+        rescue
+          exception ->
+            encode_host_exception(state, resource, action, exception, __STACKTRACE__)
+        end
+
+      case response do
+        {:binding_error, error, state} ->
+          # Observe the rendered error before Lua can discard it or catch an assertion.
+          if on_error, do: on_error.(resource, action, error)
+          encode_lua_error(state, error)
+
+        result ->
+          result
       end
     end
   end
@@ -596,7 +609,7 @@ defmodule AshLua.Runtime do
   # the full exception by the encoder.
   defp encode_host_exception(state, resource, action, exception, stacktrace) do
     error = Ash.Error.to_error_class(exception, stacktrace: stacktrace)
-    encode_action_error_response(state, resource, action, error)
+    binding_error(state, resource, action, error)
   end
 
   defp run_action_callback(resource, action, manifest, args, state) do
@@ -621,7 +634,7 @@ defmodule AshLua.Runtime do
               ((not is_nil(operation) and not AshLua.Capabilities.aggregate_queries?(resource)) or
                  (page_count?(controls) and
                     not AshLua.Capabilities.page_counts?(resource, action.name))) ->
-            encode_error_response(state, no_aggregates_error())
+            binding_error(state, no_aggregates_error())
 
           is_nil(operation) ->
             regular_call(
@@ -649,13 +662,13 @@ defmodule AshLua.Runtime do
                 )
 
               {:error, reason} ->
-                encode_action_error_response(state, resource, action, reason)
+                binding_error(state, resource, action, reason)
             end
 
           true ->
             t = Atom.to_string(action.type)
 
-            encode_error_response(
+            binding_error(
               state,
               %AshLua.Errors.FieldsError{
                 message: "`operation` is only supported on list operations (this is `#{t}`)",
@@ -668,7 +681,7 @@ defmodule AshLua.Runtime do
         end
 
       {:error, error} ->
-        encode_error_response(state, error)
+        binding_error(state, error)
     end
   end
 
@@ -773,11 +786,11 @@ defmodule AshLua.Runtime do
             {[true, nil], state}
 
           {:error, error} ->
-            encode_action_error_response(state, resource, action, error)
+            binding_error(state, resource, action, error)
         end
 
       {:error, reason} ->
-        encode_action_error_response(state, resource, action, reason)
+        binding_error(state, resource, action, reason)
     end
   end
 
@@ -790,17 +803,23 @@ defmodule AshLua.Runtime do
         {[encoded, nil], state}
 
       {:operation_error, reason} ->
-        encode_action_error_response(state, resource, action, reason)
+        binding_error(state, resource, action, reason)
 
       {:error, error} ->
-        encode_action_error_response(state, resource, action, error)
+        binding_error(state, resource, action, error)
     end
   end
 
   defp encode_error_response(state, error) do
-    {encoded, state} = Lua.encode!(state, Encoder.encode_error(error))
+    encode_lua_error(state, Encoder.encode_error(error))
+  end
+
+  defp encode_lua_error(state, error) do
+    {encoded, state} = Lua.encode!(state, error)
     {[nil, encoded], state}
   end
+
+  defp binding_error(state, error), do: {:binding_error, Encoder.encode_error(error), state}
 
   defp validate_operation_field(manifest, resource, action, [op, field])
        when is_binary(op) and (is_binary(field) or is_atom(field)) do
@@ -812,14 +831,13 @@ defmodule AshLua.Runtime do
 
   defp validate_operation_field(_manifest, _resource, _action, _operation), do: :ok
 
-  defp encode_action_error_response(state, resource, action, error) do
+  defp binding_error(state, resource, action, error) do
     encoded_error =
       error
       |> Encoder.encode_error()
       |> AshLua.FieldNames.to_lua_error(resource, action)
 
-    {encoded, state} = Lua.encode!(state, encoded_error)
-    {[nil, encoded], state}
+    {:binding_error, encoded_error, state}
   end
 
   defp run_read_operation(resource, action, input, controls, opts, operation) do

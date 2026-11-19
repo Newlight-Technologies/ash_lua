@@ -251,6 +251,43 @@ defmodule AshLua.EvalTest do
   end
 
   describe "returned error tables" do
+    test "a host observer sees a failed write even when Lua ignores its result" do
+      owner = self()
+
+      assert {:ok, %{result: 7, error: nil}} =
+               AshLua.Eval.run("posts.post.create({input = {body = 'no title'}}); return 7",
+                 otp_app: :ash_lua,
+                 on_action_error: fn resource, action, error ->
+                   send(owner, {:failed, resource, action.name, action.type, error})
+                 end
+               )
+
+      assert_received {:failed, _, :create, :create,
+                       %{"errors" => [%{"code" => "required", "fields" => ["title"]}]}}
+    end
+
+    test "the observer sees binding validation and update-not-found errors, not successful calls" do
+      owner = self()
+
+      assert {:ok, %{result: 7, error: nil}} =
+               AshLua.Eval.run(
+                 """
+                 posts.post.create({input = 'invalid shape'})
+                 assert(posts.post.create({input = {title = 'created successfully'}}))
+                 posts.post.update({input = {id = '#{Ash.UUID.generate()}', title = 'missing'}})
+                 return 7
+                 """,
+                 otp_app: :ash_lua,
+                 on_action_error: fn _resource, action, error ->
+                   send(owner, {:failed, action.name, error})
+                 end
+               )
+
+      assert_received {:failed, :create, %{"errors" => [%{"code" => "invalid_input_shape"}]}}
+      assert_received {:failed, :update, %{"errors" => [%{"code" => "not_found"}]}}
+      refute_received {:failed, _, _}
+    end
+
     test "a returned error table is converted at every depth and is JSON-encodable" do
       assert {:ok, %{result: nil, error: err} = run_result} =
                AshLua.Eval.run(
