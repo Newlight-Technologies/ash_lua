@@ -41,7 +41,7 @@ defmodule AshLua.Eval do
           | {:default_page_size, pos_integer()}
           | {:lua, Lua.t()}
           | {:lua_options, keyword()}
-          | {:on_action_error, (module(), map() -> term())}
+          | {:on_action_error, (module(), map(), map() -> term())}
           | {:source, String.t()}
           | {:manifest, Manifest.t()}
           | {:eval_resource, module()}
@@ -127,7 +127,9 @@ defmodule AshLua.Eval do
   `:actor`, `:tenant`, `:context`, `:forbidden_fields`, `:require_pagination?`,
   `:default_page_size`, `:on_action_error`, `:source`, `:lua`, and `:lua_options`. `:lua_options` is forwarded to `Lua.new/1` when a prebuilt
   `:lua` VM is not supplied. The optional host callback `:on_action_error` receives the
-  resource and action when a binding returns an error, even if the script ignores it.
+  resource, action, and the same structured error envelope exposed to Lua (not
+  the raw exception). It runs on both binding validation and action failures,
+  even if the script ignores the error, and not on successful calls.
   """
   @spec run(String.t(), run_opts()) :: {:ok, run_result()} | {:error, term()}
   def run(script, opts) when is_binary(script) and is_list(opts) do
